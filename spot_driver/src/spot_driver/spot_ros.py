@@ -57,6 +57,7 @@ class SpotROS():
         self.callbacks["front_image"] = self.FrontImageCB
         self.callbacks["side_image"] = self.SideImageCB
         self.callbacks["rear_image"] = self.RearImageCB
+        self.callbacks["hand_image"] = self.HandImageCB
 
     def RobotStateCB(self, results):
         """Callback for when the Spot Wrapper gets new robot state data.
@@ -233,6 +234,29 @@ class SpotROS():
 
             self.populate_camera_static_transforms(data[0])
             self.populate_camera_static_transforms(data[1])
+
+    def HandImageCB(self, results):
+        """Callback for when the Spot Wrapper gets new hand image data.
+
+        Args:
+            results: FutureWrapper object of AsyncPeriodicQuery callback
+        """
+        data = self.spot_wrapper.hand_images
+        if data:
+            mage_msg0, camera_info_msg0 = getImageMsg(data[0], self.spot_wrapper)
+            self.hand_image_mono_pub.publish(mage_msg0)
+            self.hand_image_mono_info_pub.publish(camera_info_msg0)
+            mage_msg1, camera_info_msg1 = getImageMsg(data[1], self.spot_wrapper)
+            self.hand_depth_pub.publish(mage_msg1)
+            self.hand_depth_info_pub.publish(camera_info_msg1)
+            image_msg2, camera_info_msg2 = getImageMsg(data[2], self.spot_wrapper)
+            self.hand_image_color_pub.publish(image_msg2)
+            self.hand_image_color_info_pub.publish(camera_info_msg2)
+
+            self.populate_camera_static_transforms(data[0])
+            self.populate_camera_static_transforms(data[1])
+            self.populate_camera_static_transforms(data[2])
+
 
     def handle_claim(self, req):
         """ROS service handler for the claim service"""
@@ -496,7 +520,6 @@ class SpotROS():
         self.password = rospy.get_param('~password', 'default_value')
         self.hostname = rospy.get_param('~hostname', 'default_value')
         self.motion_deadzone = rospy.get_param('~deadzone', 0.05)
-        self.estop_timeout = rospy.get_param('~estop_timeout', 9.0)
 
         self.camera_static_transform_broadcaster = tf2_ros.StaticTransformBroadcaster()
         # Static transform broadcaster is super simple and just a latched publisher. Every time we add a new static
@@ -520,7 +543,7 @@ class SpotROS():
         self.logger = logging.getLogger('rosout')
 
         rospy.loginfo("Starting ROS driver for Spot")
-        self.spot_wrapper = SpotWrapper(self.username, self.password, self.hostname, self.logger, self.estop_timeout, self.rates, self.callbacks)
+        self.spot_wrapper = SpotWrapper(self.username, self.password, self.hostname, self.logger, self.rates, self.callbacks)
 
         if self.spot_wrapper.is_valid:
             # Images #
@@ -529,26 +552,31 @@ class SpotROS():
             self.frontright_image_pub = rospy.Publisher('camera/frontright/image', Image, queue_size=10)
             self.left_image_pub = rospy.Publisher('camera/left/image', Image, queue_size=10)
             self.right_image_pub = rospy.Publisher('camera/right/image', Image, queue_size=10)
+            self.hand_image_mono_pub = rospy.Publisher('camera/hand_mono/image', Image, queue_size=10)
+            self.hand_image_color_pub = rospy.Publisher('camera/hand_color/image', Image, queue_size=10)
             # Depth #
             self.back_depth_pub = rospy.Publisher('depth/back/image', Image, queue_size=10)
             self.frontleft_depth_pub = rospy.Publisher('depth/frontleft/image', Image, queue_size=10)
             self.frontright_depth_pub = rospy.Publisher('depth/frontright/image', Image, queue_size=10)
             self.left_depth_pub = rospy.Publisher('depth/left/image', Image, queue_size=10)
             self.right_depth_pub = rospy.Publisher('depth/right/image', Image, queue_size=10)
-
+            self.hand_depth_pub = rospy.Publisher('depth/hand/image', Image, queue_size=10)
             # Image Camera Info #
             self.back_image_info_pub = rospy.Publisher('camera/back/camera_info', CameraInfo, queue_size=10)
             self.frontleft_image_info_pub = rospy.Publisher('camera/frontleft/camera_info', CameraInfo, queue_size=10)
             self.frontright_image_info_pub = rospy.Publisher('camera/frontright/camera_info', CameraInfo, queue_size=10)
             self.left_image_info_pub = rospy.Publisher('camera/left/camera_info', CameraInfo, queue_size=10)
             self.right_image_info_pub = rospy.Publisher('camera/right/camera_info', CameraInfo, queue_size=10)
+            self.hand_image_mono_info_pub = rospy.Publisher('camera/hand_mono/camera_info', CameraInfo, queue_size=10)
+            self.hand_image_color_info_pub = rospy.Publisher('camera/hand_color/camera_info', CameraInfo, queue_size=10)
+            
             # Depth Camera Info #
             self.back_depth_info_pub = rospy.Publisher('depth/back/camera_info', CameraInfo, queue_size=10)
             self.frontleft_depth_info_pub = rospy.Publisher('depth/frontleft/camera_info', CameraInfo, queue_size=10)
             self.frontright_depth_info_pub = rospy.Publisher('depth/frontright/camera_info', CameraInfo, queue_size=10)
             self.left_depth_info_pub = rospy.Publisher('depth/left/camera_info', CameraInfo, queue_size=10)
             self.right_depth_info_pub = rospy.Publisher('depth/right/camera_info', CameraInfo, queue_size=10)
-
+            self.hand_depth_info_pub = rospy.Publisher('depth/hand/camera_info', CameraInfo, queue_size=10)
             # Status Publishers #
             self.joint_state_pub = rospy.Publisher('joint_states', JointState, queue_size=10)
             """Defining a TF publisher manually because of conflicts between Python3 and tf"""
